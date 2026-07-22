@@ -1,6 +1,6 @@
 # End-to-End Analytics Pipeline: Case Management Reporting System
 
-A production-grade analytics pipeline built from scratch on a live SQL Server case management database, delivering organisation-wide reporting for a UK public sector organisation through a fully governed dimensional data model in Power BI.
+A production-grade analytics pipeline built from scratch on a live SQL Server case management database, delivering organisation-wide reporting for a UK charity through a fully governed dimensional data model in Power BI.
 
 This project documents the complete build from raw transactional data to executive dashboards including SQL architecture, data cleaning, dimensional modelling, DAX measures and data quality frameworks.
 
@@ -167,8 +167,6 @@ fact_Actions (grain: one row per action/contact)
 | 12 | dim_Enquiry (Enquiry Closed By) | Many to one | dim_Staff (Name) | Inactive |
 | 13 | dim_Client (Client Added By) | Many to one | dim_Staff (Name) | Inactive |
 
-<img width="808" height="642" alt="data_model_diagram" src="https://github.com/user-attachments/assets/c84feaf9-a36e-4e4c-94b6-184aec206aaa" />
-
 Inactive relationships are activated via USERELATIONSHIP() in DAX measures where needed, for example filtering enquiries by their open date, filtering by closed date, or attributing actions to specific staff roles.
 
 **dim_Client** - 83,000+ unique clients, 13 cleaned demographic columns, age banding, postcode-derived geography (Ward, Local Authority, Region).
@@ -178,6 +176,8 @@ Inactive relationships are activated via USERELATIONSHIP() in DAX measures where
 **dim_Staff** - built directly from the Users table via SQL query (not derived from fact data), Text.Proper normalisation applied to resolve case inconsistencies across staff name entry points.
 
 **dim_Date** - financial year aware, FY label, FY month number, quarter, week.
+
+<img width="968" height="747" alt="data_model_diagram" src="https://github.com/user-attachments/assets/e732ed78-bd69-4926-9fe9-ea57727ea639" />
 
 ---
 
@@ -193,7 +193,7 @@ Inactive relationships are activated via USERELATIONSHIP() in DAX measures where
 
 **Staff measures** — workload distribution, avg actions per staff, avg enquiries owned and closed, closed with no attributed staff
 
-**Geography measures** — West Midlands vs out of service area across clients, enquiries and actions
+**Geography measures** — in service area vs out of service area across clients, enquiries and actions
 
 **Data quality measures** — client record completeness (missing and invalid rates), postcode DQ, staff accountability
 
@@ -215,7 +215,7 @@ An unpivoted DQ table approach was evaluated but rejected due to volume: unpivot
 - Reduced data latency from weeks to hours
 - Established the organisation's first single source of truth for operational and strategic reporting
 - Delivered the first KPI framework grounded in verified, direct SQL data sources
-- Enabled leadership to monitor performance across four offices from a single reporting solution
+- Enabled leadership to monitor performance across multiple offices from a single reporting solution
 - Supported a successful business case for Microsoft Fabric and Power BI Premium licensing
 
 ---
