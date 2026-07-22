@@ -1,0 +1,117 @@
+// ============================================================
+// dq_measures.dax
+// ============================================================
+// data quality measures covering client record completeness,
+// postcode validation and staff accountability.
+//
+// dq signal convention (applied in power query cleaning layer):
+//   "Missing entry" — field was null or blank at source
+//   "Invalid entry" — something was entered but unclassifiable
+//   null            — new variant not yet mapped (review queue)
+//
+// note on dq architecture:
+//   an unpivoted dq table approach was evaluated but rejected
+//   for this dataset due to volume — unpivoting 13 columns
+//   across 1m+ client records produces 13m+ rows which exceeds
+//   practical load limits for import mode.
+//
+//   instead, dq is measured directly from the cleaned dimension
+//   tables using || (or) conditions across all cleaned columns.
+//   this produces headline dq metrics efficiently.
+//   per-field breakdown is available via individual column
+//   filters in visual-level filters on the dq dashboard page.
+//
+//   postcode dq uses distinct postcode count rather than client
+//   count since multiple clients can share a postcode.
+// ============================================================
+
+
+// -- headline client dq --------------------------------------
+
+Total Records Assessed =
+COUNTROWS(dim_Client)
+
+Client Missing Entries =
+CALCULATE(
+    COUNTROWS(dim_Client),
+    dim_Client[Gender]                    = "Missing entry" ||
+    dim_Client[Nationality]               = "Missing entry" ||
+    dim_Client[Ethnic Origin]             = "Missing entry" ||
+    dim_Client[Spoken Language]           = "Missing entry" ||
+    dim_Client[English Proficiency]       = "Missing entry" ||
+    dim_Client[Employment Status]         = "Missing entry" ||
+    dim_Client[Housing Status]            = "Missing entry" ||
+    dim_Client[Housing Provider]          = "Missing entry" ||
+    dim_Client[Client Immigration Status] = "Missing entry" ||
+    dim_Client[Marital Status]            = "Missing entry" ||
+    dim_Client[Sexual Orientation]        = "Missing entry" ||
+    dim_Client[Religion]                  = "Missing entry" ||
+    dim_Client[Disability]                = "Missing entry"
+)
+
+Client Invalid Entries =
+CALCULATE(
+    COUNTROWS(dim_Client),
+    dim_Client[Gender]                    = "Invalid entry" ||
+    dim_Client[Nationality]               = "Invalid entry" ||
+    dim_Client[Ethnic Origin]             = "Invalid entry" ||
+    dim_Client[Spoken Language]           = "Invalid entry" ||
+    dim_Client[English Proficiency]       = "Invalid entry" ||
+    dim_Client[Employment Status]         = "Invalid entry" ||
+    dim_Client[Housing Status]            = "Invalid entry" ||
+    dim_Client[Housing Provider]          = "Invalid entry" ||
+    dim_Client[Client Immigration Status] = "Invalid entry" ||
+    dim_Client[Marital Status]            = "Invalid entry" ||
+    dim_Client[Sexual Orientation]        = "Invalid entry" ||
+    dim_Client[Religion]                  = "Invalid entry" ||
+    dim_Client[Disability]                = "Invalid entry"
+)
+
+Client DQ Issues % =
+DIVIDE(
+    [Client Missing Entries] + [Client Invalid Entries],
+    [Total Records Assessed],
+    0
+)
+
+
+// -- staff accountability ------------------------------------
+
+Client DQ Errors by Staff =
+CALCULATE(
+    [Client Missing Entries] + [Client Invalid Entries],
+    USERELATIONSHIP(dim_Client[Client Added By], dim_Staff[Name])
+)
+
+
+// -- postcode dq ---------------------------------------------
+
+Postcodes Assessed =
+CALCULATE(
+    DISTINCTCOUNT(dim_Client[Post Code]),
+    dim_Client[Post Code] <> BLANK()
+)
+
+DQ OK - Postcode =
+CALCULATE(
+    DISTINCTCOUNT(dim_Client[Post Code]),
+    dim_Client[Postcode] <> "Invalid entry",
+    dim_Client[Postcode] <> "Missing entry",
+    dim_Client[Postcode] <> BLANK()
+)
+
+DQ Error - Postcode =
+CALCULATE(
+    DISTINCTCOUNT(dim_Client[Post Code]),
+    dim_Client[Postcode] = "Invalid entry" ||
+    dim_Client[Postcode] = "Missing entry"
+)
+
+% DQ Error - Postcode =
+DIVIDE([DQ Error - Postcode], [Postcodes Assessed], 0)
+
+Postcode DQ Errors by Staff =
+CALCULATE(
+    [DQ Error - Postcode],
+    USERELATIONSHIP(dim_Client[Client Added By], dim_Staff[Name])
+)
