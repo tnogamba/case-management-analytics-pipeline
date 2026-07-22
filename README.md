@@ -263,11 +263,11 @@ An unpivoted DQ table approach was evaluated but rejected due to volume: unpivot
 **SharePoint postcode cache** - postcodes.io API calls on 19,000+ distinct raw values would be prohibitively slow on every refresh. A SharePoint-hosted Excel cache stores previously validated postcodes; the API only runs on cache misses, reducing API calls to a small fraction of the total on each refresh.
 
 ## Related Projects
-- [retail-analytics-dbt](https://github.com/tessogamba/retail-analytics-dbt) - Analytics engineering project built with dbt and Snowflake: staging layers, marts, and data quality testing
+
+- [retail-analytics-dbt](https://github.com/tessogamba/retail-analytics-dbt) - Analytics engineering pipeline created with dbt and Snowflake: staging layers, marts, and data quality testing
 - [retail-analytics-tableau](https://github.com/tessogamba/retail-analytics-tableau) - Tableau dashboard created on top of the dbt pipeline
 - [financial-analytics-bigquery](https://github.com/tessogamba/financial-analytics-bigquery) - Financial analytics engineering project created with BigQuery and raw SQL
-- [financial-analytics-looker](https://github.com/tessogamba/financial-analytics-looker) - Looker Studio dashboard created on top of the BigQuery pipeline
+- [financial-analytics-looker](https://github.com/tessogamba/financial-analytics-looker) - Data Studio (formerly Looker Studio) dashboard created on top of the BigQuery pipeline
 
 ---
-
 *Built by Tess Ogamba · [github.com/tessogamba](https://github.com/tessogamba) · [LinkedIn](https://linkedin.com/in/tessogamba)*
