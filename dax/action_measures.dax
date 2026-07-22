@@ -1,0 +1,132 @@
+// ============================================================
+// action_measures.dax
+// ============================================================
+// measures covering action volume, type distribution,
+// referral and signpost rates, time and growth.
+//
+// note on action time:
+//   action time is recorded in minutes by caseworkers.
+//   measures convert to hours for reporting.
+//   enquiry time (sum of all action times per enquiry) is
+//   available on dim_enquiry but treated as less reliable
+//   than individual action time — caseworkers sometimes
+//   copy enquiry-level time rather than recording per action.
+// ============================================================
+
+
+// -- core action counts --------------------------------------
+
+Total Actions =
+COUNTROWS(fact_Actions)
+
+Total IAA Actions =
+CALCULATE(
+    [Total Actions],
+    dim_Enquiry[Is IAA] = "IAA"
+)
+
+Total Referrals =
+CALCULATE(
+    COUNTROWS(fact_Actions),
+    NOT ISBLANK(fact_Actions[Referral Agency])
+)
+
+Total Signposts =
+CALCULATE(
+    COUNTROWS(fact_Actions),
+    NOT ISBLANK(fact_Actions[Signpost Agency])
+)
+
+Actions for New Enquiries =
+CALCULATE(
+    COUNTROWS(fact_Actions),
+    USERELATIONSHIP(dim_Enquiry[Enquiry Date], dim_Date[Date])
+)
+
+
+// -- rates ---------------------------------------------------
+
+Referral Rate % =
+DIVIDE([Total Referrals], [Total Actions], 0)
+
+Signpost Rate % =
+DIVIDE([Total Signposts], [Total Actions], 0)
+
+IAA Actions % =
+DIVIDE([Total IAA Actions], [Total Actions], 0)
+
+% of Total Actions =
+DIVIDE(
+    COUNTROWS(fact_Actions),
+    CALCULATE(
+        COUNTROWS(fact_Actions),
+        ALLSELECTED(fact_Actions)
+    ),
+    0
+)
+
+% Actions by Type =
+DIVIDE(
+    [Total Actions],
+    CALCULATE([Total Actions], ALL(fact_Actions[Action Type])),
+    0
+)
+
+
+// -- time ----------------------------------------------------
+
+Total Action Time (Hours) =
+SUMX(
+    fact_Actions,
+    DIVIDE(fact_Actions[Action Time], 60, 0)
+)
+
+Avg Action Time (Hours) =
+DIVIDE([Total Action Time (Hours)], [Total Actions], 0)
+
+
+// -- operational metrics -------------------------------------
+
+Actions per Month =
+VAR FYMonthCount =
+    CALCULATE(
+        DISTINCTCOUNT(dim_Date[FYMonthNo]),
+        ALLSELECTED(dim_Date)
+    )
+RETURN
+DIVIDE([Total Actions], FYMonthCount)
+
+Actions per Enquiry =
+DIVIDE([Total Actions], [Total Enquiries], 0)
+
+Actions per Client =
+DIVIDE([Total Actions], [Total Clients Served], 0)
+
+
+// -- year on year --------------------------------------------
+
+Total Actions - Last Year =
+CALCULATE([Total Actions], DATEADD(dim_Date[Date], -1, YEAR))
+
+Total Actions - Growth % =
+DIVIDE(
+    [Total Actions] - [Total Actions - Last Year],
+    [Total Actions - Last Year],
+    0
+)
+// format: "▲ 0.0%;▼ 0.0%;0.0%"
+
+
+// -- geography -----------------------------------------------
+
+WM Actions =
+CALCULATE([Total Actions], dim_Client[Region] = "West Midlands")
+
+Out of Service Area Actions =
+CALCULATE([Total Actions], dim_Client[Region] <> "West Midlands")
+
+% WM Actions =
+DIVIDE([WM Actions], [Total Actions], 0)
+
+% Out of Service Area Actions =
+DIVIDE([Out of Service Area Actions], [Total Actions], 0)
