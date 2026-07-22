@@ -270,4 +270,4 @@ An unpivoted DQ table approach was evaluated but rejected due to volume: unpivot
 
 ---
 
-*Built by Tess Ogamba · [github.com/tessogamba](https://github.com/tessogamba)*
+*Built by Tess Ogamba · [github.com/tessogamba](https://github.com/tessogamba) · [LinkedIn](https://linkedin.com/in/tessogamba)*
