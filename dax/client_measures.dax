@@ -1,0 +1,224 @@
+// ============================================================
+// client_measures.dax
+// ============================================================
+// measures covering client volume, demographics, growth
+// and geographic distribution.
+//
+// naming convention:
+//   [Metric Name]           — current period value
+//   [Metric Name - Last Year] — prior year equivalent
+//   [Metric Name - Growth %]  — year on year % change
+//
+// note on "served" terminology:
+//   "Total Clients Served" = distinct clients with at least
+//   one action in the filter period. a client may have been
+//   registered years ago but still appears if they had an
+//   action in the selected period.
+//
+//   "New Clients Served" = clients whose registration date
+//   falls within the filter period AND who had an action
+//   in the same period.
+//
+//   "Returning Clients" = Total minus New. clients registered
+//   before the filter period who still had activity in it.
+// ============================================================
+
+
+// -- core client counts --------------------------------------
+
+Total Clients Served =
+DISTINCTCOUNT(fact_Actions[Client Reference])
+
+New Clients Served =
+CALCULATE(
+    DISTINCTCOUNT(fact_Actions[Client Reference]),
+    FILTER(
+        dim_Client,
+        dim_Client[Client Added Date] >= MIN(dim_Date[Date]) &&
+        dim_Client[Client Added Date] <= MAX(dim_Date[Date])
+    )
+)
+
+Returning Clients =
+[Total Clients Served] - [New Clients Served]
+
+
+// -- year on year --------------------------------------------
+
+Total Clients Served - Last Year =
+CALCULATE([Total Clients Served], DATEADD(dim_Date[Date], -1, YEAR))
+
+New Clients Served - Last Year =
+CALCULATE([New Clients Served], DATEADD(dim_Date[Date], -1, YEAR))
+
+Returning Clients - Last Year =
+CALCULATE([Returning Clients], DATEADD(dim_Date[Date], -1, YEAR))
+
+Total Clients Served - Growth % =
+DIVIDE(
+    [Total Clients Served] - [Total Clients Served - Last Year],
+    [Total Clients Served - Last Year],
+    0
+)
+// format: "▲ 0.0%;▼ 0.0%;0.0%"
+
+New Clients Served - Growth % =
+DIVIDE(
+    [New Clients Served] - [New Clients Served - Last Year],
+    [New Clients Served - Last Year],
+    0
+)
+// format: "▲ 0.0%;▼ 0.0%;0.0%"
+
+Returning Clients - Growth % =
+DIVIDE(
+    [Returning Clients] - [Returning Clients - Last Year],
+    [Returning Clients - Last Year],
+    0
+)
+// format: "▲ 0.0%;▼ 0.0%;0.0%"
+
+
+// -- percentage of total -------------------------------------
+
+% of Clients Served =
+DIVIDE(
+    DISTINCTCOUNT(fact_Actions[Client Reference]),
+    CALCULATE(
+        DISTINCTCOUNT(fact_Actions[Client Reference]),
+        ALL(dim_Client),
+        VALUES(dim_Date[FY Label])
+    ),
+    0
+)
+
+
+// -- gender --------------------------------------------------
+
+Female Clients =
+CALCULATE(
+    [Total Clients Served],
+    dim_Client[Gender] = "Female (including trans woman)"
+)
+
+Male Clients =
+CALCULATE(
+    [Total Clients Served],
+    dim_Client[Gender] = "Male (including trans man)"
+)
+
+New Female Clients =
+CALCULATE(
+    [New Clients Served],
+    dim_Client[Gender] = "Female (including trans woman)"
+)
+
+New Male Clients =
+CALCULATE(
+    [New Clients Served],
+    dim_Client[Gender] = "Male (including trans man)"
+)
+
+Female Clients % =
+DIVIDE([Female Clients], [Total Clients Served], 0)
+
+Male Clients % =
+DIVIDE([Male Clients], [Total Clients Served], 0)
+
+
+// -- demographics --------------------------------------------
+
+Clients with Disability =
+CALCULATE(
+    DISTINCTCOUNT(dim_Client[Client Reference]),
+    dim_Client[Disability] IN {
+        "Sensory Impairment",
+        "Mobility Impairment",
+        "Mental Health Disability",
+        "Chronic Health Condition",
+        "Intellectual or Developmental Disability",
+        "Other (Non-categorised)"
+    }
+)
+
+Clients with Disability % =
+DIVIDE([Clients with Disability], [Total Clients Served], 0)
+
+Clients from Global Majority Backgrounds =
+CALCULATE(
+    DISTINCTCOUNT(dim_Client[Client Reference]),
+    FILTER(
+        dim_Client,
+        NOT(dim_Client[Ethnic Origin] IN {
+            "White British",
+            "White Irish",
+            "White Other",
+            "Eastern European",
+            "Declined To Disclose",
+            "Missing entry",
+            "Invalid entry"
+        }) &&
+        NOT ISBLANK(dim_Client[Ethnic Origin])
+    )
+)
+
+Clients from Global Majority Backgrounds % =
+DIVIDE([Clients from Global Majority Backgrounds], [Total Clients Served], 0)
+
+Clients with No Recourse to Public Funds =
+CALCULATE(
+    DISTINCTCOUNT(dim_Client[Client Reference]),
+    dim_Client[Client Immigration Status] IN {
+        "(NRPF) Limited Leave to Remain (LLR)",
+        "(NRPF) Discretionary Leave to Remain (DLR)"
+    }
+)
+
+Distinct Nationalities =
+CALCULATE(
+    DISTINCTCOUNT(dim_Client[Nationality]),
+    dim_Client[Nationality] <> "Missing entry",
+    dim_Client[Nationality] <> "Invalid entry",
+    NOT ISBLANK(dim_Client[Nationality])
+)
+
+Distinct Religions =
+CALCULATE(
+    DISTINCTCOUNT(dim_Client[Religion]),
+    dim_Client[Religion] <> "Missing entry",
+    dim_Client[Religion] <> "Invalid entry",
+    NOT ISBLANK(dim_Client[Religion])
+)
+
+Distinct Spoken Languages =
+CALCULATE(
+    DISTINCTCOUNT(dim_Client[Spoken Language]),
+    dim_Client[Spoken Language] <> "Missing entry",
+    dim_Client[Spoken Language] <> "Invalid entry",
+    NOT ISBLANK(dim_Client[Spoken Language])
+)
+
+
+// -- geography -----------------------------------------------
+
+WM Clients =
+CALCULATE([Total Clients Served], dim_Client[Region] = "West Midlands")
+
+Out of Service Area Clients =
+CALCULATE([Total Clients Served], dim_Client[Region] <> "West Midlands")
+
+% WM Clients =
+DIVIDE([WM Clients], [Total Clients Served], 0)
+
+% Out of Service Area Clients =
+DIVIDE([Out of Service Area Clients], [Total Clients Served], 0)
+
+% Clients by LA =
+DIVIDE(
+    [Total Clients Served],
+    CALCULATE(
+        [Total Clients Served],
+        ALL(dim_Client[Local Authority])
+    ),
+    0
+)
