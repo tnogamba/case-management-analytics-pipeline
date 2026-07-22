@@ -1,0 +1,91 @@
+// ============================================================
+// staff_measures.dax
+// ============================================================
+// measures covering staff headcount, workload distribution
+// and accountability.
+//
+// note on staff relationships:
+//   dim_staff[Name] is the one side of four relationships:
+//     active:   fact_actions[Action By]
+//     inactive: fact_actions[Enquiry Owner]
+//     inactive: fact_actions[Enquiry Closed By]
+//     inactive: dim_enquiry[Enquiry Owner]
+//     inactive: dim_enquiry[Enquiry Created By]
+//     inactive: dim_enquiry[Enquiry Closed By]
+//     inactive: dim_client[Client Added By]
+//
+//   measures that filter by enquiry owner or closed by use
+//   userelationship() to activate the relevant inactive path.
+//
+//   "Unknown" is a placeholder name used for records where
+//   the staff column was null at source. excluded from
+//   workload averages but included in dq accountability.
+// ============================================================
+
+
+// -- headcount -----------------------------------------------
+
+Total Staff =
+DISTINCTCOUNT(dim_Staff[Name])
+
+
+// -- workload by staff ---------------------------------------
+
+Actions by Staff =
+CALCULATE(
+    [Total Actions],
+    USERELATIONSHIP(fact_Actions[Action By], dim_Staff[Name])
+)
+
+Enquiries Owned by Staff =
+CALCULATE(
+    [Total Enquiries],
+    USERELATIONSHIP(dim_Enquiry[Enquiry Owner], dim_Staff[Name])
+)
+
+New Enquiries Owned by Staff =
+CALCULATE(
+    [New Enquiries],
+    USERELATIONSHIP(dim_Enquiry[Enquiry Owner], dim_Staff[Name])
+)
+
+Enquiries Open by Staff =
+CALCULATE(
+    [Open Enquiries],
+    USERELATIONSHIP(dim_Enquiry[Enquiry Owner], dim_Staff[Name])
+)
+
+Enquiries Created by Staff =
+CALCULATE(
+    [New Enquiries],
+    USERELATIONSHIP(dim_Enquiry[Enquiry Created By], dim_Staff[Name])
+)
+
+Enquiries Closed by Staff =
+CALCULATE(
+    [Closed Enquiries],
+    USERELATIONSHIP(dim_Enquiry[Enquiry Closed By], dim_Staff[Name])
+)
+
+// enquiries closed with no staff recorded as closing them
+// useful for identifying cases where closure was not attributed
+// note: checks for "Unknown" since nulls were replaced in pq
+Closed No Staff =
+CALCULATE(
+    DISTINCTCOUNT(dim_Enquiry[Enquiry Reference]),
+    NOT ISBLANK(dim_Enquiry[Enquiry Closed Date]),
+    dim_Enquiry[Enquiry Closed By] = "Unknown",
+    USERELATIONSHIP(dim_Enquiry[Enquiry Closed Date], dim_Date[Date])
+)
+
+
+// -- averages ------------------------------------------------
+
+Avg Actions per Staff =
+DIVIDE([Actions by Staff], [Total Staff], 0)
+
+Avg Enquiries Owned per Staff =
+DIVIDE([Enquiries Owned by Staff], [Total Staff], 0)
+
+Avg Enquiries Closed per Staff =
+DIVIDE([Enquiries Closed by Staff], [Total Staff], 0)
