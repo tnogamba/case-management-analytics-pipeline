@@ -1,0 +1,267 @@
+// ============================================================
+// enquiry_measures.dax
+// ============================================================
+// measures covering enquiry volume, status, closure,
+// IAA classification and period on period growth.
+//
+// note on enquiry terminology:
+//   "Total Enquiries" = distinct enquiries with at least one
+//   action in the filter period (driven by Action Date).
+//
+//   "New Enquiries" = enquiries whose Enquiry Date falls
+//   within the filter period (opened in the period).
+//
+//   "Returning Enquiries" = Total minus New. enquiries opened
+//   before the filter period that still had activity in it
+//   — ongoing caseload.
+//
+//   "Enquiries by Q Answer" uses INTERSECT to count enquiries
+//   with actions in the period regardless of when the enquiry
+//   was opened. used for slicing by Q1/Q2/Q3 Answer where
+//   the correct denominator is active caseload not just new.
+// ============================================================
+
+
+// -- core enquiry counts -------------------------------------
+
+Total Enquiries =
+DISTINCTCOUNT(fact_Actions[Enquiry Reference])
+
+New Enquiries =
+CALCULATE(
+    DISTINCTCOUNT(dim_Enquiry[Enquiry Reference]),
+    USERELATIONSHIP(dim_Enquiry[Enquiry Date], dim_Date[Date]),
+    VALUES(dim_Date[FY Label])
+)
+
+Returning Enquiries =
+[Total Enquiries] - [New Enquiries]
+
+
+// -- status --------------------------------------------------
+
+Open Enquiries =
+CALCULATE(
+    DISTINCTCOUNT(dim_Enquiry[Enquiry Reference]),
+    ISBLANK(dim_Enquiry[Enquiry Closed Date])
+)
+
+Closed Enquiries =
+CALCULATE(
+    DISTINCTCOUNT(dim_Enquiry[Enquiry Reference]),
+    NOT ISBLANK(dim_Enquiry[Enquiry Closed Date]),
+    USERELATIONSHIP(dim_Enquiry[Enquiry Closed Date], dim_Date[Date])
+)
+
+New Enquiries Closed =
+CALCULATE(
+    DISTINCTCOUNT(dim_Enquiry[Enquiry Reference]),
+    USERELATIONSHIP(dim_Enquiry[Enquiry Date], dim_Date[Date]),
+    NOT ISBLANK(dim_Enquiry[Enquiry Closed Date])
+)
+
+Open Enquiries % =
+DIVIDE([Open Enquiries], [Total Enquiries], 0)
+
+Closed Enquiries % =
+DIVIDE([Closed Enquiries], [Total Enquiries], 0)
+
+
+// -- iaa -----------------------------------------------------
+// iaa = immigration advice and assistance (oisc regulated work)
+// the is_iaa calculated column on dim_enquiry classifies each
+// enquiry based on enquiry type and q3 answer combination.
+
+IAA Enquiries =
+CALCULATE(
+    [Total Enquiries],
+    dim_Enquiry[Is IAA] = "IAA"
+)
+
+IAA Enquiries % =
+DIVIDE([IAA Enquiries], [Total Enquiries], 0)
+
+
+// -- percentages ---------------------------------------------
+
+New Enquiries % =
+DIVIDE([New Enquiries], [Total Enquiries], 0)
+
+Returning Enquiries % =
+DIVIDE([Returning Enquiries], [Total Enquiries], 0)
+
+% New Enquiries by Month =
+DIVIDE(
+    CALCULATE(
+        DISTINCTCOUNT(dim_Enquiry[Enquiry Reference]),
+        USERELATIONSHIP(dim_Enquiry[Enquiry Date], dim_Date[Date])
+    ),
+    CALCULATE(
+        DISTINCTCOUNT(dim_Enquiry[Enquiry Reference]),
+        USERELATIONSHIP(dim_Enquiry[Enquiry Date], dim_Date[Date]),
+        ALL(dim_Date[Month]),
+        ALL(dim_Date[FYMonthNo]),
+        VALUES(dim_Date[FY Label])
+    ),
+    0
+)
+
+% New Enquiries by Enquiry Type =
+DIVIDE(
+    [New Enquiries],
+    CALCULATE([New Enquiries], ALL(dim_Enquiry[Enquiry Type])),
+    0
+)
+
+% Total Enquiries by Type =
+DIVIDE(
+    [Total Enquiries],
+    CALCULATE([Total Enquiries], ALL(dim_Enquiry[Enquiry Type])),
+    0
+)
+
+
+// -- q answer analysis ---------------------------------------
+// intersect-based measure counts enquiries with actions in the
+// selected period regardless of enquiry open date.
+// used when slicing by Q1/Q2/Q3 Answer to get correct
+// denominator for active caseload breakdown.
+
+Enquiries by Q Answer =
+COUNTROWS(
+    INTERSECT(
+        CALCULATETABLE(
+            VALUES(dim_Enquiry[Enquiry Reference]),
+            ALL(dim_Date)
+        ),
+        CALCULATETABLE(
+            VALUES(fact_Actions[Enquiry Reference]),
+            USERELATIONSHIP(fact_Actions[Action Date], dim_Date[Date])
+        )
+    )
+)
+
+% Enquiries by Q Answer =
+DIVIDE(
+    [Enquiries by Q Answer],
+    CALCULATE(
+        COUNTROWS(
+            INTERSECT(
+                CALCULATETABLE(
+                    VALUES(dim_Enquiry[Enquiry Reference]),
+                    ALL(dim_Date),
+                    ALL(dim_Enquiry[Q1 Answer], dim_Enquiry[Q2 Answer], dim_Enquiry[Q3 Answer])
+                ),
+                CALCULATETABLE(
+                    VALUES(fact_Actions[Enquiry Reference]),
+                    USERELATIONSHIP(fact_Actions[Action Date], dim_Date[Date])
+                )
+            )
+        )
+    ),
+    0
+)
+
+
+// -- operational metrics -------------------------------------
+
+Enquiries per Client =
+DIVIDE([Total Enquiries], [Total Clients Served], 0)
+
+Avg Enquiries per Month =
+DIVIDE(
+    [Total Enquiries],
+    DISTINCTCOUNT(dim_Date[FYMonthNo]),
+    0
+)
+
+Avg Days to Closure =
+CALCULATE(
+    AVERAGEX(
+        FILTER(
+            dim_Enquiry,
+            NOT ISBLANK(dim_Enquiry[Enquiry Closed Date])
+        ),
+        DATEDIFF(
+            dim_Enquiry[Enquiry Date],
+            dim_Enquiry[Enquiry Closed Date],
+            DAY
+        )
+    ),
+    USERELATIONSHIP(dim_Enquiry[Enquiry Closed Date], dim_Date[Date])
+)
+
+
+// -- year on year --------------------------------------------
+
+Total Enquiries - Last Year =
+CALCULATE([Total Enquiries], DATEADD(dim_Date[Date], -1, YEAR))
+
+New Enquiries - Last Year =
+CALCULATE([New Enquiries], DATEADD(dim_Date[Date], -1, YEAR))
+
+Returning Enquiries - Last Year =
+CALCULATE([Returning Enquiries], DATEADD(dim_Date[Date], -1, YEAR))
+
+Total Enquiries - Growth % =
+DIVIDE(
+    [Total Enquiries] - [Total Enquiries - Last Year],
+    [Total Enquiries - Last Year],
+    0
+)
+// format: "▲ 0.0%;▼ 0.0%;0.0%"
+
+New Enquiries - Growth % =
+DIVIDE(
+    [New Enquiries] - [New Enquiries - Last Year],
+    [New Enquiries - Last Year],
+    0
+)
+// format: "▲ 0.0%;▼ 0.0%;0.0%"
+
+Returning Enquiries - Growth % =
+DIVIDE(
+    [Returning Enquiries] - [Returning Enquiries - Last Year],
+    [Returning Enquiries - Last Year],
+    0
+)
+// format: "▲ 0.0%;▼ 0.0%;0.0%"
+
+
+// -- geography -----------------------------------------------
+
+WM Enquiries =
+CALCULATE([Total Enquiries], dim_Client[Region] = "West Midlands")
+
+Out of Service Area Enquiries =
+CALCULATE([Total Enquiries], dim_Client[Region] <> "West Midlands")
+
+% WM Enquiries =
+DIVIDE([WM Enquiries], [Total Enquiries], 0)
+
+% Out of Service Area Enquiries =
+DIVIDE([Out of Service Area Enquiries], [Total Enquiries], 0)
+
+
+// -- calculated columns (added to dim_enquiry) -----------------
+// these are row-level calculations — added as calculated columns
+// not measures. listed here for completeness.
+
+// Closure Time Band =
+// VAR Days = DATEDIFF(dim_Enquiry[Enquiry Date], dim_Enquiry[Enquiry Closed Date], DAY)
+// RETURN
+// IF(
+//     ISBLANK(dim_Enquiry[Enquiry Closed Date]), "Open / Not yet closed",
+//     IF(Days <= 30,  "Under 30 days",
+//     IF(Days <= 90,  "31 - 90 days",
+//     IF(Days <= 180, "91 - 180 days",
+//     "Over 180 days")))
+// )
+
+// Closure Time Band Sort =
+// VAR Days = DATEDIFF(dim_Enquiry[Enquiry Date], dim_Enquiry[Enquiry Closed Date], DAY)
+// RETURN
+// IF(ISBLANK(dim_Enquiry[Enquiry Closed Date]), 5,
+// IF(Days <= 30,  1,
+// IF(Days <= 90,  2,
+// IF(Days <= 180, 3, 4))))
